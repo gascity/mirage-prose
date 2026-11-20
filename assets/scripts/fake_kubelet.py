@@ -61,6 +61,21 @@ for n in json.loads(r.stdout)["items"]:
     if p.returncode:
         print(f"fake-kubelet: {name}: lease failed: {p.stderr.strip()}"); rc = 1
     conds = set_ready(conds, "True", "KubeletReady", "mirage fake kubelet is posting ready", now)
+    # If the node-lifecycle controller marked the pressure conditions Unknown
+    # (NodeStatusUnknown) during a heartbeat gap, restore the canonical set
+    # EnsureFakeNode writes (node.go:118-124): CAPI's NodeHealthy reads ALL
+    # conditions, and a lingering Unknown keeps the Machine NotReady.
+    canonical = {"MemoryPressure": ("KubeletHasSufficientMemory", ""),
+                 "DiskPressure": ("KubeletHasNoDiskPressure", ""),
+                 "PIDPressure": ("KubeletHasSufficientPID", "")}
+    present = {c["type"] for c in conds}
+    for c in conds:
+        if c["type"] in canonical and c.get("status") != "False":
+            c.update(status="False", reason=canonical[c["type"]][0], message=canonical[c["type"]][1], lastTransitionTime=now)
+    for t, (reason, msg) in canonical.items():
+        if t not in present:
+            conds.append({"type": t, "status": "False", "reason": reason, "message": msg,
+                          "lastHeartbeatTime": now, "lastTransitionTime": now})
     for c in conds:
         c["lastHeartbeatTime"] = now
     p = kubectl("patch", "node", name, "--subresource=status", "--type=merge", *FM,
