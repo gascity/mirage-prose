@@ -13,7 +13,8 @@ RES="${1:?usage: watch.sh <resource>}"
 . "$(cd "$(dirname "$0")" && pwd)/env.sh"
 MAX_SLING="${MIRAGE_PROSE_MAX_SLING:-3}"
 MAX_ATTEMPTS="${MIRAGE_PROSE_MAX_ATTEMPTS:-6}"
-TARGET="${MIRAGE_PROSE_TARGET:-${GC_RIG:+$GC_RIG/}mirage-reconciler}"
+# gc binds pack agents as <rig>/<binding>.<agent>; the binding equals the pack dir name here.
+TARGET="${MIRAGE_PROSE_TARGET:-${GC_RIG:+$GC_RIG/}${GC_PACK_NAME:+$GC_PACK_NAME.}mirage-reconciler}"
 DRY="${MIRAGE_PROSE_DRY_RUN:-false}"
 
 if [ ! -f "$KUBECONFIG" ]; then
@@ -24,8 +25,12 @@ fi
 OBJS=$(kubectl get "$RES" -A -o json --request-timeout=20s)
 CLUSTERS=$(kubectl get clusters.cluster.x-k8s.io -A -o json --request-timeout=20s)
 MACHINES=$(kubectl get machines.cluster.x-k8s.io -A -o json --request-timeout=20s)
-# Names only: the script never reads Secret data.
-KUBECONFIG_SECRETS=$(kubectl get secrets -A -l cluster.x-k8s.io/cluster-name -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' --request-timeout=20s || true)
+# Names only, per namespace the objects live in (the role allows secrets only
+# there): the script never reads Secret data.
+KUBECONFIG_SECRETS=""
+for ns in $(printf '%s' "$OBJS" | jq -r '.items[].metadata.namespace' | sort -u); do
+  KUBECONFIG_SECRETS="$KUBECONFIG_SECRETS $(kubectl -n "$ns" get secrets -l cluster.x-k8s.io/cluster-name -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{" "}{end}' --request-timeout=20s 2>/dev/null || true)"
+done
 
 CANDIDATES=$(python3 - "$RES" "$KUBECONFIG_SECRETS" <<'PY' "$OBJS" "$CLUSTERS" "$MACHINES"
 import json, sys

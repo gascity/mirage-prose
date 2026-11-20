@@ -12,8 +12,11 @@ verify, record, loop safety). The steps below say "apply the skill"; they do
 not restate it. The watch orders sling this formula for every object that is
 not at its contract state and has no open reconcile bead.
 
-The molecule root bead IS the control bead - the reconcile's record lives in
-its notes (`gc bd update <root> --notes`), as the k8s-reconcile skill specifies.
+The molecule is root-only (phase = vapor): the root bead is the work the pool
+claims AND the control bead whose notes carry the reconcile's record
+(`gc bd update <root> --notes`), as the k8s-reconcile skill specifies. The
+steps are read from the recipe (`gc formula show mol-mirage-reconcile`) and
+walked in order in one session.
 
 object: {{kind}}/{{namespace}}/{{name}}
 attempt: {{attempt}}
@@ -41,6 +44,11 @@ dry_run: {{dry_run}}
 | attempt >= 5 with no progress | notes `status: failed`, `error: no-progress`; close, gc.outcome=fail |"""
 formula = "mol-mirage-reconcile"
 version = 1
+# Root-only wisp: gc routes the root bead to the scale-from-zero reconciler
+# pool (a molecule container is not Ready-visible work, gc sling says so);
+# the agent reads the four steps below with `gc formula show` and walks them
+# in one session, recording everything on the root bead.
+phase = "vapor"
 
 [vars]
 [vars.kind]

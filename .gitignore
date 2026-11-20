@@ -1,5 +1,4 @@
 # per-rig state gc creates inside the rig
-.beads/
 .gc/
 .kourt/
 # never a credential in the repo
@@ -7,3 +6,14 @@
 kubeconfig
 *.token
 __pycache__/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
+
+# Gas City
+.beads/*
+!.beads/identity.toml

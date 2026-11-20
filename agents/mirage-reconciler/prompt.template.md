@@ -40,7 +40,6 @@ fi
 printf 'CLAIMED_BEAD_ID=%s\nROOT=%s\n' "$ID" "$ROOT"
 ROOT_JSON="$(gc bd show "$ROOT" --json)"
 printf '%s' "$ROOT_JSON" | jq -r '.[0] | "TITLE: \(.title)\n\(.description)"' | sed -n '1,12p'
-gc bd mol current "$ROOT" 2>/dev/null | head -20
 GC_CLAIM
 ```
 
@@ -50,13 +49,18 @@ names the object (`object: <kind>/<namespace>/<name>`, `attempt:`, `dry_run:`).
 
 ## Work the molecule
 
-The molecule has four steps, `observe -> decide -> act -> verify`, each a bead
-under `ROOT` whose description says which section of which skill to apply.
-Work them in order in this session: do the step, then
-`gc bd close <step id> --reason "<one line>"`. The `verify` step ends by
-writing the notes block to `ROOT`, setting `gc.outcome`, and closing `ROOT`
-(the k8s-reconcile skill, section 5). Close every step id you were given and
-no other bead.
+The molecule is root-only: `ROOT` is the bead you claimed, its description
+names the object, and the four steps `observe -> decide -> act -> verify`
+live in the recipe. Read them once:
+
+```bash
+gc formula show mol-mirage-reconcile
+```
+
+Each step's description says which section of which skill to apply. Work
+them in order in this session; do not create or close any other bead. The
+`verify` step ends by writing the notes block to `ROOT`, setting
+`gc.outcome`, and closing `ROOT` (the k8s-reconcile skill, section 5).
 
 When `ROOT` is closed, run the claim block again. If it prints
 `NO_ROUTED_WORK`, exit.
