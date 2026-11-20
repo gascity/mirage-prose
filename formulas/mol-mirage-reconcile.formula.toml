@@ -1,0 +1,127 @@
+description = """
+Reconcile one mirage object against the provider contract written in English.
+One molecule = one reconcile of {{kind}}/{{namespace}}/{{name}} (attempt {{attempt}}).
+
+    gc sling <rig>/mirage-reconciler mol-mirage-reconcile --formula \\
+      --var kind=miragemachines --var namespace=default --var name=foo
+
+THIN WRAPPER. The *what* is the pack's `mirage-contract` skill (the Go
+reconcilers of cluster-api-provider-mirage, rule by rule, with line
+citations); the *how* is the `k8s-reconcile` skill (observe, decide, act,
+verify, record, loop safety). The steps below say "apply the skill"; they do
+not restate it. The watch orders sling this formula for every object that is
+not at its contract state and has no open reconcile bead.
+
+The molecule root bead IS the control bead - the reconcile's record lives in
+its notes (`gc bd update <root> --notes`), as the k8s-reconcile skill specifies.
+
+object: {{kind}}/{{namespace}}/{{name}}
+attempt: {{attempt}}
+dry_run: {{dry_run}}
+
+## Contract
+
+1. Vars `kind`, `namespace`, `name` name the object; `attempt` is the number
+   of reconciles this object has had including this one; `dry_run=true`
+   decides and records but writes nothing to the cluster
+2. `observe` reads the object, its owner chain and its bead/revision
+3. `decide` writes one decision line against the contract
+4. `act` sends the contract's patches, one per step, waiting out timers
+5. `verify` re-reads and records produced revisions; the root bead is closed
+   with `status: done|progressed|waiting|failed|dry-run`
+
+## Failure Modes
+
+| Situation | Action |
+|-----------|--------|
+| kubeconfig missing / whoami fails | notes `status: failed`, `error: kubeconfig`; close |
+| object not found | notes `status: done`, `decision: object gone`; close |
+| owner missing or gate not met | notes `status: waiting`, no write; close |
+| Forbidden from the apiserver | notes `status: failed`, `error: forbidden ...`; close |
+| attempt >= 5 with no progress | notes `status: failed`, `error: no-progress`; close, gc.outcome=fail |"""
+formula = "mol-mirage-reconcile"
+version = 1
+
+[vars]
+[vars.kind]
+description = "Resource name as kubectl spells it: mirageclusters | miragecontrolplanes | miragemachines | mirageconfigs"
+required = true
+
+[vars.namespace]
+description = "Namespace of the object"
+required = true
+
+[vars.name]
+description = "Name of the object"
+required = true
+
+[vars.attempt]
+description = "How many reconciles this object has had, counting this one (the watch script sets it)"
+required = false
+default = "1"
+
+[vars.dry_run]
+description = "true: decide and record, but write nothing to the cluster"
+required = false
+default = "false"
+
+[[steps]]
+id = "observe"
+title = "Observe {{kind}}/{{namespace}}/{{name}}"
+assignee = "mirage-reconciler"
+description = """
+Apply section 1 of the `k8s-reconcile` skill (`skills/k8s-reconcile/SKILL.md`
+in this rig): set the environment, prove the identity with
+`kubectl auth whoami`, read the object, its owner chain and its bead
+(`observed_rev`), and the previous reconcile beads labelled
+`obj:{{kind}}/{{namespace}}/{{name}}`. Keep what you read; the later steps cite it.
+
+**Exit criteria:** object, owners and bead revision in hand (or the reconcile
+is already over: object gone / kubeconfig missing, recorded per the skill).
+"""
+
+[[steps]]
+id = "decide"
+title = "Decide against the mirage contract"
+needs = ["observe"]
+assignee = "mirage-reconciler"
+description = """
+Read the `{{kind}}` section of the `mirage-contract` skill
+(`skills/mirage-contract/SKILL.md`) top to bottom against what you observed
+and write ONE decision line (section 2 of `k8s-reconcile`). A "do nothing"
+rule ends the reconcile with `status: waiting` or `status: done`.
+Attempt {{attempt}}: apply the loop-safety rule before deciding to act.
+
+**Exit criteria:** `decision:` line written (it goes into the notes in `verify`).
+"""
+
+[[steps]]
+id = "act"
+title = "Act: send the contract's patches"
+needs = ["decide"]
+assignee = "mirage-reconciler"
+description = """
+Section 3 of `k8s-reconcile`: one contract step = one `kubectl` write with
+`--field-manager=mirage-prose`, status through `--subresource=status`,
+timers waited out with sleep + re-read, identical patches skipped, Secrets
+never printed. dry_run={{dry_run}}: when true, list the patches you would
+send and send nothing.
+
+**Exit criteria:** every patch the decision calls for has been sent (or
+skipped as already true), within the wait budget.
+"""
+
+[[steps]]
+id = "verify"
+title = "Verify and record in the root-bead notes"
+needs = ["act"]
+assignee = "mirage-reconciler"
+description = """
+Sections 4 and 5 of `k8s-reconcile`: re-read the object and whatever you
+created, confirm each field holds, fetch the bead again for `produced_rev`,
+then write the notes block to the molecule root bead, set `gc.outcome`, and
+close the root bead with the status in the reason.
+
+**Exit criteria:** root-bead notes carry `object:`, `attempt:`, `bead:`,
+`observed_rev:`, `decision:`, `actions:`, `produced:`, `status:`; root closed.
+"""

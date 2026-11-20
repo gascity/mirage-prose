@@ -1,0 +1,2 @@
+description = 'the Go mirage-controller-manager is scaled to 0, so only the prose controller writes'
+run = '../check-go-controller.sh'

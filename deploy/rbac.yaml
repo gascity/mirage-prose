@@ -1,0 +1,139 @@
+# The identity the prose controller acts under. Least privilege, modelled on
+# config/rbac/role.yaml of cluster-api-provider-mirage minus what the prose
+# controller never does (pods, leader-election leases in mirage-system).
+# Apply once with an admin kubeconfig: kubectl apply -f deploy/rbac.yaml
+# Then mint the agents' kubeconfig with deploy/make-kubeconfig.sh.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mirage-prose
+  namespace: mirage-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mirage-prose
+rules:
+# the mirage kinds, all of them, incl. templates and status
+- apiGroups: ["infrastructure.cluster.x-k8s.io", "controlplane.cluster.x-k8s.io", "bootstrap.cluster.x-k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Cluster API core: read the owner chain; create/delete control-plane Machines
+- apiGroups: ["cluster.x-k8s.io"]
+  resources: ["clusters", "clusters/status", "machinesets", "machinesets/status", "machinedeployments", "machinedeployments/status"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["cluster.x-k8s.io"]
+  resources: ["machines", "machines/status"]
+  verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+# fake Nodes (MirageMachine stage 2, deletion, fake-kubelet heartbeat)
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+- apiGroups: [""]
+  resources: ["nodes/status"]
+  verbs: ["get", "patch", "update"]
+# events the reconciles may emit
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+# a doctor check reads the Go controller's replica count
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  resourceNames: ["mirage-controller-manager"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mirage-prose
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mirage-prose
+subjects:
+- kind: ServiceAccount
+  name: mirage-prose
+  namespace: mirage-system
+---
+# bootstrap data Secrets and the <cluster>-kubeconfig Secret live in the
+# cluster's namespace (default for the examples); the kubernetes Service's
+# clusterIP is the in-cluster apiserver address the kubeconfig points at.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mirage-prose
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  resourceNames: ["kubernetes"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mirage-prose
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mirage-prose
+subjects:
+- kind: ServiceAccount
+  name: mirage-prose
+  namespace: mirage-system
+---
+# the one Secret the control-plane reconcile reads: the durable workload
+# token the Go controller also uses (cmd/main.go:162-181)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mirage-prose-workload-token
+  namespace: mirage-system
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["mirage-workload-token"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mirage-prose-workload-token
+  namespace: mirage-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mirage-prose-workload-token
+subjects:
+- kind: ServiceAccount
+  name: mirage-prose
+  namespace: mirage-system
+---
+# node leases (ensureLease / DeleteFakeNode / fake-kubelet)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mirage-prose
+  namespace: kube-node-lease
+rules:
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mirage-prose
+  namespace: kube-node-lease
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mirage-prose
+subjects:
+- kind: ServiceAccount
+  name: mirage-prose
+  namespace: mirage-system

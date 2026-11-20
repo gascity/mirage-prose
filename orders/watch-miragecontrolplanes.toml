@@ -1,0 +1,21 @@
+# The "watch" for miragecontrolplanes: the Go controller's informer + predicates, as a poll.
+#
+# Why polling: kine-beads does not journal its writes yet (beads 1.3.4
+# activates the events journal only from cmd/bd), so gc's `event` trigger has
+# nothing to see when a cluster object changes. An `exec` events provider
+# over /v0/beads/events:watch is the future path; until then this order
+# lists the objects every cooldown and slings a reconcile for each one that
+# is not at its contract state and has no open reconcile bead.
+#
+# Deterministic, no LLM: it only decides *whether* an object needs a
+# reconcile (the predicate half of SetupWithManager); the reconcile itself
+# is the mol-mirage-reconcile formula. Self-idempotent, so it opts out of
+# the open-work gates and is single-flighted by its cooldown.
+[order]
+description = "Sling a reconcile for every miragecontrolplanes not at its contract state"
+trigger = "cooldown"
+interval = "30s"
+exec = "bash $GC_PACK_DIR/assets/scripts/watch.sh miragecontrolplanes"
+timeout = "120s"
+idempotent = true
+no_work_gate = true

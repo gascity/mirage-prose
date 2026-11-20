@@ -1,0 +1,20 @@
+# The reconciler. A pool agent: the watch orders sling one mol-mirage-reconcile
+# molecule per object that needs a reconcile, routed to this agent; the
+# orchestrator starts a session per routed molecule up to max_active_sessions
+# and recycles it when idle. Its standing role is the two pack skills
+# (skills/mirage-contract, skills/k8s-reconcile); it never touches the Go
+# controller, Argo, or anything outside the contract.
+description = "mirage reconciler: reconciles one Mirage object against the provider contract written in English"
+scope = "rig"
+provider = "claude"
+min_active_sessions = 0
+max_active_sessions = 3
+idle_timeout = "3m"
+wake_mode = "fresh"
+# Small model on purpose: a reconcile is rule-following, not design. Override
+# per city with a [[patches.agent]] option_defaults if a run needs more.
+option_defaults = { model = "claude-sonnet-5-5", effort = "medium" }
+# The scoped identity's kubeconfig lives OUTSIDE the repo; the path is config,
+# not code. Override MIRAGE_PROSE_KUBECONFIG (and MIRAGE_PROSE_BEADS) in the
+# city with [[patches.agent]] env = {...} when the defaults in
+# assets/scripts/env.sh do not fit the machine.

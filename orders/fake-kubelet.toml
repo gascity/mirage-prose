@@ -1,0 +1,15 @@
+# The Go binary runs a FakeKubelet runnable (internal/mirage/node.go:174-260)
+# that every 5 s renews each fake Node's lease and Ready heartbeat; without
+# it the node-lifecycle controller marks the fake Nodes Unknown within a
+# minute. A heartbeat is not a decision, so it stays mechanical here: an exec
+# order whose script renews three times, 10 s apart, per 30 s cooldown.
+# Pods bound to fake Nodes are NOT marked Running (the Go loop does that
+# too); nothing in the quickstart depends on it.
+[order]
+description = "Renew the lease and Ready heartbeat of every fake Node (the Go FakeKubelet loop)"
+trigger = "cooldown"
+interval = "30s"
+exec = "bash $GC_PACK_DIR/assets/scripts/fake-kubelet.sh"
+timeout = "60s"
+idempotent = true
+no_work_gate = true

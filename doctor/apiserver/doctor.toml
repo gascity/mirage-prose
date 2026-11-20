@@ -1,0 +1,3 @@
+description = 'the apiserver answers the scoped mirage-prose identity, so reconciles can act'
+run = '../check-apiserver.sh'
+warmup = true

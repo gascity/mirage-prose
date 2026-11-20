@@ -1,0 +1,2 @@
+description = 'the k3s-beads /v0 door is up, so reconciles can read the cluster as a graph'
+run = '../check-beads.sh'

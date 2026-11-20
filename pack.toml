@@ -1,0 +1,34 @@
+# mirage-prose - the Cluster API "mirage" provider's controllers, written in
+# English and run by Gas City on a k3s whose datastore is beads.
+#
+# What the Go binary does with four reconcilers, a FakeKubelet loop and
+# controller-runtime watches, this pack does with:
+#   skills/    mirage-contract  the provider contract per kind, rule by rule,
+#                               each rule citing the Go file and line
+#              k8s-reconcile    how one reconcile observes / decides / acts /
+#                               verifies / records, and the loop-safety rules
+#   formulas/  mol-mirage-reconcile  one molecule = one reconcile of one object
+#                               (vars kind, namespace, name, attempt, dry_run)
+#   orders/    watch-<kind>     the informer+predicate half, as a 30 s poll
+#                               that slings the formula for every object not
+#                               at its contract state (kine does not journal
+#                               yet, so gc's event trigger cannot see cluster
+#                               mutations; see orders/*.toml)
+#              fake-kubelet     the Go FakeKubelet heartbeat loop, mechanical
+#   agents/    mirage-reconciler  the pool agent the molecules are routed to
+#   doctor/    scoped identity reachable, /v0 up, Go controller scaled to 0
+#   deploy/    the ServiceAccount + least-privilege RBAC the agents act under
+#
+# SELF-CONTAINED: no [imports.*]. Needs kubectl, jq, python3, curl, a scoped
+# kubeconfig at $MIRAGE_PROSE_KUBECONFIG (outside the repo), and bd serve on
+# $MIRAGE_PROSE_BEADS. Nothing here pushes or opens PRs.
+#
+# Usage: import the pack into a rig (the repo root is the pack):
+#   gc rig add /path/to/mirage-prose --name mirage-prose --include /path/to/mirage-prose
+# then scale the Go controller to 0 and `gc start`. The watch orders do the rest.
+
+[pack]
+name = "mirage-prose"
+version = "0.1.0"
+schema = 2
+description = "Cluster API mirage provider controllers written in English, run by Gas City on k3s-on-beads"
