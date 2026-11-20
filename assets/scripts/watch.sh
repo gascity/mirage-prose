@@ -123,19 +123,21 @@ if [ -z "$CANDIDATES" ]; then
   exit 0
 fi
 
-# Reconcile beads are wisps labelled mirage-prose + obj:<res>/<ns>/<name>.
-OPEN=$(gc bd list --label mirage-prose --include-ephemeral --limit 0 --json 2>/dev/null | jq -r '.[]?.labels[]? | select(startswith("obj:"))' | sort -u || true)
-ALL=$(gc bd list --all --label mirage-prose --include-ephemeral --limit 0 --json 2>/dev/null | jq -r '.[]?.labels[]? | select(startswith("obj:"))' | sort | uniq -c || true)
+# Reconcile beads are wisps titled "reconcile <res>/<ns>/<name>" (labels on
+# wisps are not reliably readable back, so the title is the key).
+OPEN=$(gc bd list --include-ephemeral --limit 0 --json 2>/dev/null | jq -r '.[]? | select(.status=="open" or .status=="in_progress") | .title | select(startswith("reconcile "))' | sort -u || true)
+ALL=$(gc bd list --all --include-ephemeral --limit 0 --json 2>/dev/null | jq -r '.[]? | .title | select(startswith("reconcile "))' | sort | uniq -c || true)
 
 n=0
 while read -r ns name reason; do
   [ -n "$name" ] || continue
   obj="obj:$RES/$ns/$name"
-  if grep -qx "$obj" <<<"$OPEN"; then
+  title="reconcile $RES/$ns/$name"
+  if grep -qxF "$title" <<<"$OPEN"; then
     echo "watch[$RES]: $ns/$name needs '$reason' - reconcile already open"
     continue
   fi
-  prior=$(awk -v o="$obj" '$2==o {print $1}' <<<"$ALL"); prior="${prior:-0}"
+  prior=$(grep -F " $title" <<<"$ALL" | awk '{print $1}' | head -1); prior="${prior:-0}"
   attempt=$((prior + 1))
   if [ "$attempt" -gt "$MAX_ATTEMPTS" ]; then
     echo "watch[$RES]: STUCK $ns/$name needs '$reason' after $prior reconciles; not slinging (cap $MAX_ATTEMPTS)"
@@ -150,12 +152,13 @@ while read -r ns name reason; do
   OUT=$(gc sling "$TARGET" mol-mirage-reconcile --formula --json \
         --var "kind=$RES" --var "namespace=$ns" --var "name=$name" \
         --var "attempt=$attempt" --var "dry_run=$DRY" \
-        --title "reconcile $RES/$ns/$name" 2>&1) || { echo "watch[$RES]: sling failed: $OUT"; continue; }
-  ROOT=$(printf '%s' "$OUT" | jq -r 'if type=="array" then .[0] else . end | (.root_id // .root_bead_id // .bead_id // .id // .wisp_id // empty)' 2>/dev/null || true)
+        --title "$title" 2>&1) || { echo "watch[$RES]: sling failed: $OUT"; continue; }
+  # gc sling prints notes before the JSON line; keep the JSON only.
+  ROOT=$(printf '%s\n' "$OUT" | grep '^{' | tail -1 | jq -r 'if type=="array" then .[0] else . end | (.root_id // .root_bead_id // .bead_id // .id // .wisp_id // empty)' 2>/dev/null || true)
   if [ -z "$ROOT" ]; then
     echo "watch[$RES]: could not find the root bead id in sling output: $OUT"
     continue
   fi
-  gc bd update "$ROOT" --add-label mirage-prose --add-label "$obj" >/dev/null
+  gc bd update "$ROOT" --add-label mirage-prose --add-label "$obj" >/dev/null 2>&1 || true
   echo "watch[$RES]: slung $ROOT for $ns/$name (attempt $attempt)"
 done <<<"$CANDIDATES"
