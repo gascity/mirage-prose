@@ -137,7 +137,7 @@ while read -r ns name reason; do
     echo "watch[$RES]: $ns/$name needs '$reason' - reconcile already open"
     continue
   fi
-  prior=$(grep -F " $title" <<<"$ALL" | awk '{print $1}' | head -1); prior="${prior:-0}"
+  prior=$( { grep -F " $title" <<<"$ALL" || true; } | awk '{print $1}' | head -1); prior="${prior:-0}"
   attempt=$((prior + 1))
   if [ "$attempt" -gt "$MAX_ATTEMPTS" ]; then
     echo "watch[$RES]: STUCK $ns/$name needs '$reason' after $prior reconciles; not slinging (cap $MAX_ATTEMPTS)"
