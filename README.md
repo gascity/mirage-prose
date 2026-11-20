@@ -99,6 +99,36 @@ kubectl get cluster,miragecluster,miragecontrolplane,machines,miragemachines,nod
 gc order list; gc bd list --label mirage-prose --include-ephemeral --all
 ```
 
+city.toml settings that matter (what the experiment city used):
+
+```toml
+[providers.claude]                      # agents start through gct: the user's own credentials
+base = "builtin:claude"
+command = "gct"
+args = ["launch", "--auth", "auto", "claude"]
+path_check = "claude"
+resume_command = "gct launch --auth auto claude --resume {{.SessionKey}}"
+
+[orders]
+# gc's orders lane dispatches at most max_dispatches_per_tick orders per pass
+# (default 4) round-robin over EVERY order in the city; the core pack's ~19
+# housekeeping orders starved the five pack orders (watches fired every
+# 2-5 min, the fake-kubelet heartbeat missed its 40 s window). Keep the
+# rotation short and the budget above it.
+max_dispatches_per_tick = 8
+skip = ["reaper", "wisp-compact", "orphan-sweep",          # would purge the reconcile trail
+        "mol-dog-phantom-db", "mol-dog-compactor", "mol-dog-backup", "mol-dog-stale-db", "mol-dog-doctor",
+        "dolt-health", "dolt-remotes-patrol", "beads-health", "cross-rig-deps", "gate-sweep",
+        "nudge-mail-sweep", "renudge-stale-human-gates", "spawn-storm-detect", "prune-branches",
+        "jsonl-export", "cascade-nudge-on-blocker-close", "notify-on-human-gate-creation",
+        "notify-on-claims-stalled", "notify-on-claims-resumed", "binding-snapshot"]
+
+[daemon]
+patrol_interval = "15s"
+```
+
+Rig-store queries need `--rig mirage-prose` (`gc bd list --rig mirage-prose --all --include-ephemeral`, `gc order history --rig mirage-prose`); without it gc answers from the city store.
+
 Done when the Cluster is `Provisioned`/`Available=True`, the control plane
 has 3 Machines `Running` with `nodeRef`, the MachineDeployment is 3/3 and
 the 6 fake Nodes are `Ready`.
