@@ -9,9 +9,22 @@
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/env.sh"
 [ -f "$KUBECONFIG" ] || { echo "fake-kubelet: no scoped kubeconfig at $KUBECONFIG"; exit 0; }
-PASSES="${MIRAGE_PROSE_KUBELET_PASSES:-3}"
-for ((i = 1; i <= PASSES; i++)); do
-  python3 "$(cd "$(dirname "$0")" && pwd)/fake_kubelet.py" || echo "fake-kubelet: pass $i had errors"
-  [ "$i" -lt "$PASSES" ] && sleep 10
+# Run as a long-lived loop: the orders lane dispatches this order once per
+# pass (tens of seconds to minutes when reconciles are busy), so a short
+# script leaves gaps longer than the 40 s node-monitor grace period. Loop for
+# MIRAGE_PROSE_KUBELET_SECONDS (default 570 s, under the order's 10 m
+# timeout) with a pass every MIRAGE_PROSE_KUBELET_INTERVAL (10 s); the
+# order's tracking bead single-flights the next dispatch until this exits.
+SECS="${MIRAGE_PROSE_KUBELET_SECONDS:-570}"
+INT="${MIRAGE_PROSE_KUBELET_INTERVAL:-10}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+start=$(date +%s); n=0; errs=0
+while :; do
+  n=$((n + 1))
+  python3 "$HERE/fake_kubelet.py" || errs=$((errs + 1))
+  now=$(date +%s)
+  [ $((now - start + INT)) -ge "$SECS" ] && break
+  sleep "$INT"
 done
+echo "fake-kubelet: $n passes in $(( $(date +%s) - start )) s, $errs with errors"
 exit 0

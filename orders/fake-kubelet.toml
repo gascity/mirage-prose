@@ -3,6 +3,9 @@
 # it the node-lifecycle controller marks the fake Nodes Unknown within a
 # minute. A heartbeat is not a decision, so it stays mechanical here: an exec
 # order whose script renews three times, 10 s apart, per 30 s cooldown.
+# The script loops for ~9.5 min with a pass every 10 s (the lane dispatches
+# an order at most once per pass, and a pass can take minutes while
+# reconciles run); the open tracking bead single-flights the next dispatch.
 # Pods bound to fake Nodes are NOT marked Running (the Go loop does that
 # too); nothing in the quickstart depends on it.
 [order]
@@ -10,6 +13,5 @@ description = "Renew the lease and Ready heartbeat of every fake Node (the Go Fa
 trigger = "cooldown"
 interval = "30s"
 exec = "bash $GC_PACK_DIR/assets/scripts/fake-kubelet.sh"
-timeout = "60s"
+timeout = "10m"
 idempotent = true
-no_work_gate = true
