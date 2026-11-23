@@ -1,3 +1,5 @@
+> **⚠️ Experimental — a Gas City research build.** This targets **k3s-on-beads**: an experimental datastore that keeps Kubernetes state in a Dolt-backed [beads](https://github.com/gastownhall/beads) store instead of etcd. It **requires the [`gascity/kine` beads RC](https://github.com/gascity/kine/releases/tag/beads-v0.1.0-rc.1) running as the cluster's datastore** — without it, this does not function. Functional but evolving; the API surface and capabilities are still being explored. Not for production.
+
 # mirage-prose
 
 A Kubernetes controller written in English, run by Gas City, on a cluster
